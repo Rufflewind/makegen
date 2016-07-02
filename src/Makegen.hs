@@ -26,10 +26,6 @@ at_Map k f m = set <$> f (Map.lookup k m)
     set Nothing  = Map.delete k m
     set (Just x) = Map.insert k x m
 
-newtype VarMap
-  = VarMap (Map TypeRep Dynamic)
-  deriving Show
-
 -- | Union two 'Map's.  If the 'Map's contain conflicting elements, the list
 -- of conflicting elements is returned via 'Left'.
 unionEq_Map :: (Ord k, Eq a) =>
@@ -46,21 +42,12 @@ unionEq_Map m1 m2
       guard (v1 /= v2)
       pure (k, v1, v2)
 
-field :: (Functor f, Eq a, Monoid a, Typeable a) =>
-         (a -> f a) -> VarMap -> f VarMap
-field f (VarMap m) =
-  case undefined of
-    dummy_a ->
-      let set x | x == mempty = Nothing
-                | otherwise   = Just (toDyn (x `asTypeOf` dummy_a))
-          get y = fromMaybe mempty (fromDynamic =<< y)
-          upd y = set <$> f (get y)
-      in VarMap <$> at_Map (typeOf dummy_a) upd m
-
+-- Nothing -> this macro is intentionally not defined
+-- Just X -> this macro must be defined to be X
 data Makefile =
   Makefile
   { _rules :: !(Map String ([String], [String]))
-  , _macros :: !(Map String String)
+  , _macros :: !(Map String (Maybe String))
   } deriving (Eq, Ord, Read, Show)
 
 -- TODO: change value from String to Maybe String because
@@ -68,7 +55,7 @@ data Makefile =
 
 data MakefileError
   = ERuleConflict (String, ([String], [String]), ([String], [String]))
-  | EMacroConflict (String, String, String)
+  | EMacroConflict (String, Maybe String, Maybe String)
   deriving (Eq, Ord, Read, Show)
 
 mempty_Makefile = Makefile mempty mempty
@@ -111,9 +98,37 @@ instance Monad Make where
           Right myx ->
             Make myx y
 
+-- derived from v1's simple_command
+-- TODO: If output filename begins with '#', it is a phony rule
+rule :: FilePath                        -- ^ output filename
+     -> [String]                        -- ^ shell commands
+     -> [Make FilePath]                 -- ^ dependencies
+     -> Make FilePath
+rule fn cmds deps = do
+  depFns <- sequenceA deps
+  Make (Makefile{ _rules = Map.fromList [(fn, (depFns, cmds))]
+                , _macros = Map.fromList [] }) fn
+
+-- wait a second ... Map union isn't as efficient as I thought D:
+
+------------------------------------------------------------------------------
+
 -- | Laws are @isMempty mempty ≡ True@ and if @a ≡ t b@ and @Foldable t@ then
 -- @isMempty ≡ null@.
 class Monoid a => MemptyComparable a where
   isMempty :: a -> Bool
 
-data Mk m a = Mk m a
+newtype VarMap
+  = VarMap (Map TypeRep Dynamic)
+  deriving Show
+
+field :: (Functor f, Eq a, Monoid a, Typeable a) =>
+         (a -> f a) -> VarMap -> f VarMap
+field f (VarMap m) =
+  case undefined of
+    dummy_a ->
+      let set x | x == mempty = Nothing
+                | otherwise   = Just (toDyn (x `asTypeOf` dummy_a))
+          get y = fromMaybe mempty (fromDynamic =<< y)
+          upd y = set <$> f (get y)
+      in VarMap <$> at_Map (typeOf dummy_a) upd m
