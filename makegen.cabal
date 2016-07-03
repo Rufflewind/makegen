@@ -26,17 +26,21 @@ library
   hs-source-dirs:      src
   exposed-modules:     Makegen
   build-depends:       base >= 4.7 && < 5
+                     , bytestring
                      , containers
+                     , cryptonite
+                     , lattices
+                     , memory
+                     , text
                      , transformers
+                     , unordered-containers
   default-language:    Haskell2010
 
 test-suite makegen-test
   type:                exitcode-stdio-1.0
-  hs-source-dirs:      src
-  main-is:             Test.hs
+  hs-source-dirs:      src/test
+  main-is:             Main.hs
   build-depends:       base
                      , makegen
-                     , containers
-                     , transformers
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
